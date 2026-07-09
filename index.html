@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#1b1f27">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Solveur de chats</title>
+<style>
+  :root {
+    --bg: #1b1f27;
+    --panel: #242a35;
+    --border: #343c4a;
+    --text: #eef1f6;
+    --text-muted: #9aa4b5;
+    --accent: #e8a24d;
+    --accent-dark: #b97f36;
+    --ok: #6fbf8b;
+    --err: #e0705f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px 16px 60px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  p.subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .buttons-row {
+    display: flex;
+    gap: 10px;
+  }
+  label.upload-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 18px 10px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--border);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+  }
+  label.upload-btn:active { background: #2c3341; }
+  label.upload-btn svg { width: 26px; height: 26px; opacity: 0.85; }
+  input[type=file] { display: none; }
+
+  .options {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .options input {
+    width: 52px;
+    background: #171b22;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  button.solve-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 13px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #221a0e;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button.solve-btn:active { background: var(--accent-dark); }
+  button.solve-btn:disabled { opacity: 0.5; }
+
+  #status {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    min-height: 18px;
+    white-space: pre-line;
+  }
+  #status.err { color: var(--err); }
+  #status.ok { color: var(--ok); }
+
+  #resultCard { display: none; }
+  #resultCanvas {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  #coordsList {
+    font-size: 13px;
+    line-height: 1.9;
+    columns: 2;
+    color: var(--text-muted);
+  }
+  #coordsList b { color: var(--text); }
+
+  a.download-link {
+    display: block;
+    text-align: center;
+    margin-top: 12px;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<h1>🐱 Solveur de chats</h1>
+<p class="subtitle">Prends une photo de la grille (ou choisis-en une), l'app détecte les couleurs et calcule le placement des chats — tout se passe dans le navigateur, aucune donnée n'est envoyée nulle part.</p>
+
+<div class="card">
+  <div class="buttons-row">
+    <label class="upload-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="14" r="3.5"/></svg>
+      Prendre une photo
+      <input type="file" accept="image/*" capture="environment" id="cameraInput">
+    </label>
+    <label class="upload-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-2-2-5 5"/></svg>
+      Choisir une image
+      <input type="file" accept="image/*" id="galleryInput">
+    </label>
+  </div>
+
+  <div class="options">
+    <span>Taille de grille (optionnel) :</span>
+    <input type="number" id="gridSize" placeholder="auto" min="3" max="20">
+  </div>
+
+  <button class="solve-btn" id="solveBtn" disabled>Résoudre</button>
+  <div id="status"></div>
+</div>
+
+<div class="card" id="resultCard">
+  <canvas id="resultCanvas"></canvas>
+  <div id="coordsList"></div>
+  <a class="download-link" id="downloadLink" download="solution.png">Télécharger l'image annotée</a>
+</div>
+
+<script>
+let currentImage = null;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// If this page was opened via the Android share sheet, the service worker
+// stashed the shared photo in Cache Storage before redirecting here.
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('share-target') === '1') {
+    loadSharedPhoto();
+  }
+});
+
+async function loadSharedPhoto() {
+  setStatus('Photo reçue, chargement...');
+  try {
+    const cache = await caches.open('cat-solver-share');
+    const res = await cache.match('shared-photo');
+    if (!res) { setStatus("Aucune photo partagée trouvée.", 'err'); return; }
+    const blob = await res.blob();
+    await cache.delete('shared-photo');
+
+    const img = new Image();
+    img.onload = () => {
+      currentImage = img;
+      document.getElementById('solveBtn').disabled = false;
+      setStatus('Photo reçue (' + img.naturalWidth + '×' + img.naturalHeight + '). Résolution automatique...');
+      run();
+    };
+    img.onerror = () => setStatus("Impossible de lire la photo partagée.", 'err');
+    img.src = URL.createObjectURL(blob);
+
+    // clean the URL so a refresh doesn't try to reload a consumed cache entry
+    history.replaceState({}, '', location.pathname);
+  } catch (e) {
+    setStatus('Erreur de réception : ' + e.message, 'err');
+  }
+}
+
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    currentImage = img;
+    document.getElementById('solveBtn').disabled = false;
+    setStatus('Photo chargée (' + img.naturalWidth + '×' + img.naturalHeight + '). Prêt à résoudre.');
+  };
+  img.onerror = () => setStatus("Impossible de lire cette image.", 'err');
+  img.src = URL.createObjectURL(file);
+}
+
+document.getElementById('cameraInput').addEventListener('change', e => handleFile(e.target.files[0]));
+document.getElementById('galleryInput').addEventListener('change', e => handleFile(e.target.files[0]));
+document.getElementById('solveBtn').addEventListener('click', run);
+
+// ---------------------------------------------------------------------
+// Image analysis
+// ---------------------------------------------------------------------
+
+function colorDiff(r1, g1, b1, r2, g2, b2) {
+  return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+}
+
+// Find the bounding box of the puzzle grid: the largest connected blob
+// of "non background" pixels on a downsampled copy of the image.
+function findGridBBox(imgData, w, h) {
+  const data = imgData.data;
+  const bgIdx = (2 * w + 2) * 4;
+  const bgR = data[bgIdx], bgG = data[bgIdx + 1], bgB = data[bgIdx + 2];
+
+  const maxDim = Math.max(w, h);
+  const factor = Math.max(1, Math.ceil(maxDim / 900));
+  const dw = Math.ceil(w / factor);
+  const dh = Math.ceil(h / factor);
+
+  const mask = new Uint8Array(dw * dh);
+  for (let dy = 0; dy < dh; dy++) {
+    for (let dx = 0; dx < dw; dx++) {
+      const x = Math.min(w - 1, dx * factor);
+      const y = Math.min(h - 1, dy * factor);
+      const idx = (y * w + x) * 4;
+      const diff = colorDiff(data[idx], data[idx + 1], data[idx + 2], bgR, bgG, bgB);
+      mask[dy * dw + dx] = diff > 30 ? 1 : 0;
+    }
+  }
+
+  const labels = new Int32Array(dw * dh).fill(-1);
+  let bestLabel = -1, bestSize = 0;
+  const bboxes = {};
+  let nextLabel = 0;
+
+  for (let start = 0; start < dw * dh; start++) {
+    if (mask[start] !== 1 || labels[start] !== -1) continue;
+    const label = nextLabel++;
+    let size = 0;
+    let minX = dw, maxX = 0, minY = dh, maxY = 0;
+    const queue = [start];
+    labels[start] = label;
+    while (queue.length) {
+      const cur = queue.pop();
+      const cx = cur % dw, cy = (cur / dw) | 0;
+      size++;
+      if (cx < minX) minX = cx;
+      if (cx > maxX) maxX = cx;
+      if (cy < minY) minY = cy;
+      if (cy > maxY) maxY = cy;
+
+      const neighbors = [
+        [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]
+      ];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || ny < 0 || nx >= dw || ny >= dh) continue;
+        const nIdx = ny * dw + nx;
+        if (mask[nIdx] === 1 && labels[nIdx] === -1) {
+          labels[nIdx] = label;
+          queue.push(nIdx);
+        }
+      }
+    }
+    bboxes[label] = [minX, minY, maxX, maxY];
+    if (size > bestSize) { bestSize = size; bestLabel = label; }
+  }
+
+  if (bestLabel === -1) throw new Error("Grille non détectée.");
+  const [minX, minY, maxX, maxY] = bboxes[bestLabel];
+  return [
+    Math.max(0, minX * factor),
+    Math.max(0, minY * factor),
+    Math.min(w - 1, maxX * factor + factor),
+    Math.min(h - 1, maxY * factor + factor)
+  ];
+}
+
+// Count how many cell borders appear along x and y within the grid bbox,
+// by summing color-gradient strength across the whole grid (borders are
+// consistent on every row/column, noise is not).
+function detectGridSize(img, bbox) {
+  const [x0, y0, x1, y1] = bbox;
+  const bw = x1 - x0, bh = y1 - y0;
+  const targetW = 500;
+  const scale = Math.min(1, targetW / bw);
+  const sw = Math.max(1, Math.round(bw * scale));
+  const sh = Math.max(1, Math.round(bh * scale));
+
+  const c = document.createElement('canvas');
+  c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, x0, y0, bw, bh, 0, 0, sw, sh);
+  const data = ctx.getImageData(0, 0, sw, sh).data;
+
+  const colProfile = new Float64Array(sw - 1);
+  const rowProfile = new Float64Array(sh - 1);
+
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw - 1; x++) {
+      const i1 = (y * sw + x) * 4, i2 = (y * sw + x + 1) * 4;
+      colProfile[x] += colorDiff(data[i1], data[i1+1], data[i1+2], data[i2], data[i2+1], data[i2+2]);
+    }
+  }
+  for (let y = 0; y < sh - 1; y++) {
+    for (let x = 0; x < sw; x++) {
+      const i1 = (y * sw + x) * 4, i2 = ((y+1) * sw + x) * 4;
+      rowProfile[y] += colorDiff(data[i1], data[i1+1], data[i1+2], data[i2], data[i2+1], data[i2+2]);
+    }
+  }
+
+  function countCells(profile) {
+    const max = Math.max(...profile);
+    const thresh = max * 0.3;
+    const groups = [];
+    let i = 0;
+    while (i < profile.length) {
+      if (profile[i] > thresh) {
+        let j = i;
+        while (j < profile.length && j - i < 20 && profile[j] > thresh * 0.3) j++;
+        groups.push(i);
+        i = j + 15;
+      } else {
+        i++;
+      }
+    }
+    return Math.max(1, groups.length - 1);
+  }
+
+  return [countCells(rowProfile), countCells(colProfile)];
+}
+
+function sampleCellColors(img, bbox, rows, cols) {
+  const [x0, y0, x1, y1] = bbox;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, c.width, c.height).data;
+  const w = c.width;
+
+  const cellW = (x1 - x0) / cols;
+  const cellH = (y1 - y0) / rows;
+  const half = Math.max(2, Math.floor(Math.min(cellW, cellH) * 0.15));
+
+  const colors = [];
+  for (let r = 0; r < rows; r++) {
+    for (let cIdx = 0; cIdx < cols; cIdx++) {
+      const cx = Math.round(x0 + cellW * (cIdx + 0.5));
+      const cy = Math.round(y0 + cellH * (r + 0.5));
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+          const px = cx + dx, py = cy + dy;
+          if (px < 0 || py < 0 || px >= w || py >= c.height) continue;
+          const idx = (py * w + px) * 4;
+          sr += data[idx]; sg += data[idx+1]; sb += data[idx+2];
+          n++;
+        }
+      }
+      colors.push([sr / n, sg / n, sb / n]);
+    }
+  }
+  return colors;
+}
+
+function kmeans(points, k, seed) {
+  let s = seed || 1;
+  const rand = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+
+  const centers = [points[Math.floor(rand() * points.length)]];
+  while (centers.length < k) {
+    const d2 = points.map(p => Math.min(...centers.map(c =>
+      (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2)));
+    const total = d2.reduce((a,b) => a+b, 0);
+    let r = rand() * total, idx = 0;
+    while (r > d2[idx] && idx < d2.length - 1) { r -= d2[idx]; idx++; }
+    centers.push(points[idx]);
+  }
+
+  let assign = new Array(points.length).fill(0);
+  for (let iter = 0; iter < 100; iter++) {
+    let changed = false;
+    for (let i = 0; i < points.length; i++) {
+      let best = 0, bestD = Infinity;
+      for (let k2 = 0; k2 < k; k2++) {
+        const c = centers[k2];
+        const d = (points[i][0]-c[0])**2 + (points[i][1]-c[1])**2 + (points[i][2]-c[2])**2;
+        if (d < bestD) { bestD = d; best = k2; }
+      }
+      if (assign[i] !== best) { changed = true; assign[i] = best; }
+    }
+    const sums = Array.from({length: k}, () => [0,0,0,0]);
+    for (let i = 0; i < points.length; i++) {
+      const a = assign[i];
+      sums[a][0] += points[i][0]; sums[a][1] += points[i][1];
+      sums[a][2] += points[i][2]; sums[a][3] += 1;
+    }
+    for (let k2 = 0; k2 < k; k2++) {
+      if (sums[k2][3] > 0) {
+        centers[k2] = [sums[k2][0]/sums[k2][3], sums[k2][1]/sums[k2][3], sums[k2][2]/sums[k2][3]];
+      }
+    }
+    if (!changed) break;
+  }
+  return { assign, centers };
+}
+
+function solvePuzzle(labels, n) {
+  const solution = new Array(n).fill(-1);
+  const usedCols = new Set();
+  const usedColors = new Set();
+
+  function isValid(row, col) {
+    if (usedCols.has(col)) return false;
+    const color = labels[row][col];
+    if (usedColors.has(color)) return false;
+    if (row > 0 && solution[row-1] !== -1 && Math.abs(solution[row-1] - col) <= 1) return false;
+    return true;
+  }
+
+  function backtrack(row) {
+    if (row === n) return true;
+    for (let col = 0; col < n; col++) {
+      if (isValid(row, col)) {
+        solution[row] = col;
+        usedCols.add(col);
+        usedColors.add(labels[row][col]);
+        if (backtrack(row + 1)) return true;
+        solution[row] = -1;
+        usedCols.delete(col);
+        usedColors.delete(labels[row][col]);
+      }
+    }
+    return false;
+  }
+
+  return backtrack(0) ? solution : null;
+}
+
+// ---------------------------------------------------------------------
+// Main flow
+// ---------------------------------------------------------------------
+
+function run() {
+  if (!currentImage) return;
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('solveBtn').disabled = true;
+
+  setTimeout(() => {
+    try {
+      setStatus('Détection de la grille...');
+      const w = currentImage.naturalWidth, h = currentImage.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(currentImage, 0, 0);
+      const imgData = ctx.getImageData(0, 0, w, h);
+
+      const bbox = findGridBBox(imgData, w, h);
+
+      let rows, cols;
+      const manual = parseInt(document.getElementById('gridSize').value, 10);
+      if (manual && manual > 2) {
+        rows = cols = manual;
+      } else {
+        [rows, cols] = detectGridSize(currentImage, bbox);
+      }
+      if (rows !== cols) {
+        // keep the more reliable dimension (grids here are always square)
+        const n = Math.round((rows + cols) / 2);
+        rows = cols = n;
+      }
+      setStatus('Grille détectée : ' + rows + '×' + cols + '. Analyse des couleurs...');
+
+      const rawColors = sampleCellColors(currentImage, bbox, rows, cols);
+      const { assign, centers } = kmeans(rawColors, rows, 7);
+
+      const labels = [];
+      for (let r = 0; r < rows; r++) {
+        labels.push(assign.slice(r * cols, r * cols + cols));
+      }
+
+      setStatus('Recherche de la solution...');
+      const solution = solvePuzzle(labels, rows);
+
+      if (!solution) {
+        setStatus("Pas de solution trouvée : la détection des couleurs est probablement imprécise. Essaie une photo mieux cadrée/éclairée, ou renseigne la taille de grille manuellement.", 'err');
+        document.getElementById('solveBtn').disabled = false;
+        return;
+      }
+
+      drawResult(bbox, rows, cols, solution);
+      setStatus('Solution trouvée (' + rows + ' chats).', 'ok');
+    } catch (e) {
+      setStatus('Erreur : ' + e.message, 'err');
+    }
+    document.getElementById('solveBtn').disabled = false;
+  }, 30);
+}
+
+function drawResult(bbox, rows, cols, solution) {
+  const [x0, y0, x1, y1] = bbox;
+  const canvas = document.getElementById('resultCanvas');
+  canvas.width = currentImage.naturalWidth;
+  canvas.height = currentImage.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(currentImage, 0, 0);
+
+  const cellW = (x1 - x0) / cols;
+  const cellH = (y1 - y0) / rows;
+  const rad = Math.min(cellW, cellH) * 0.32;
+
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = Math.max(3, rad * 0.22);
+  for (let row = 0; row < rows; row++) {
+    const col = solution[row];
+    const cx = x0 + cellW * (col + 0.5);
+    const cy = y0 + cellH * (row + 0.5);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - rad, cy - rad); ctx.lineTo(cx + rad, cy + rad);
+    ctx.moveTo(cx - rad, cy + rad); ctx.lineTo(cx + rad, cy - rad);
+    ctx.stroke();
+  }
+
+  const listEl = document.getElementById('coordsList');
+  listEl.innerHTML = solution.map((col, row) =>
+    `<div><b>Ligne ${row+1}</b> → colonne ${col+1}</div>`
+  ).join('');
+
+  document.getElementById('downloadLink').href = canvas.toDataURL('image/png');
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
