@@ -1,6 +1,6 @@
 {
   "name": "Meowdoku Solver",
-  "short_name": "Meowdoku Solver",
+  "short_name": "MeowdokuSolver",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
